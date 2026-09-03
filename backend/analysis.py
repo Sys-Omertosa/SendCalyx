@@ -10,6 +10,7 @@ uncertainty, and not a probability that a prediction is medically correct.
 
 from __future__ import annotations
 
+import itertools
 import math
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -48,6 +49,95 @@ def normalized_binary_entropy(probabilities: Sequence[float]) -> float:
     values = np.clip(values / total, EPS, 1.0)
     entropy = float(-np.sum(values * np.log(values)))
     return float(np.clip(entropy / math.log(2.0), 0.0, 1.0))
+
+
+def jensen_shannon_divergence(p: Sequence[float], q: Sequence[float]) -> float:
+    """Jensen-Shannon divergence between two discrete distributions, base 2.
+
+    ``JSD(P, Q) = 0.5 * KL(P || M) + 0.5 * KL(Q || M)`` with ``M = 0.5 * (P + Q)``.
+
+    Using log base 2 bounds the result in ``[0, 1]`` for any pair of
+    distributions: ``0`` when they are identical, ``1`` when they place all mass
+    on different outcomes. Both inputs are renormalised and epsilon-clipped, so
+    zero-probability entries are safe.
+    """
+    p_arr = np.asarray(list(p), dtype=np.float64)
+    q_arr = np.asarray(list(q), dtype=np.float64)
+    if p_arr.size != q_arr.size or p_arr.size == 0:
+        return 0.0
+
+    p_sum = float(p_arr.sum())
+    q_sum = float(q_arr.sum())
+    if p_sum <= EPS or q_sum <= EPS:
+        return 0.0
+
+    p_arr = np.clip(p_arr / p_sum, EPS, 1.0)
+    q_arr = np.clip(q_arr / q_sum, EPS, 1.0)
+    m_arr = 0.5 * (p_arr + q_arr)
+
+    divergence = 0.5 * float(np.sum(p_arr * np.log2(p_arr / m_arr))) + 0.5 * float(
+        np.sum(q_arr * np.log2(q_arr / m_arr))
+    )
+    return float(np.clip(divergence, 0.0, 1.0))
+
+
+def compute_probability_divergence(
+    individual_models: Mapping[str, Mapping[str, Any]],
+) -> Dict[str, Any]:
+    """Pairwise Jensen-Shannon divergence across base-model class distributions.
+
+    This measures how differently the base models distributed probability mass,
+    which is finer-grained than the vote counts: three models can vote the same
+    way while disagreeing substantially about how confident that call is.
+
+    It is a model-behaviour diagnostic, not uncertainty. Surfaced to users as
+    "probability divergence".
+
+    Returns ``pairwise`` (one entry per model pair), ``mean``, ``max``,
+    ``most_divergent_pair``, and ``available`` (False when fewer than two models
+    supplied a usable distribution).
+    """
+    distributions: List[Tuple[str, List[float]]] = []
+
+    for model_id, result in individual_models.items():
+        probabilities = result.get("probabilities") or {}
+        values = [
+            float(probabilities.get(name, 0.0)) for name in CLASS_NAMES
+        ]
+        if not all(math.isfinite(value) for value in values):
+            continue
+        if sum(values) <= EPS:
+            continue
+        distributions.append((model_id, values))
+
+    if len(distributions) < 2:
+        return {
+            "pairwise": [],
+            "mean": 0.0,
+            "max": 0.0,
+            "most_divergent_pair": None,
+            "available": False,
+        }
+
+    pairwise: List[Dict[str, Any]] = []
+    for (left_id, left), (right_id, right) in itertools.combinations(distributions, 2):
+        pairwise.append(
+            {
+                "models": [left_id, right_id],
+                "value": jensen_shannon_divergence(left, right),
+            }
+        )
+
+    values = [entry["value"] for entry in pairwise]
+    most_divergent = max(pairwise, key=lambda entry: entry["value"])
+
+    return {
+        "pairwise": pairwise,
+        "mean": float(sum(values) / len(values)),
+        "max": float(max(values)),
+        "most_divergent_pair": list(most_divergent["models"]),
+        "available": True,
+    }
 
 
 def compute_prediction_consensus(
@@ -91,6 +181,9 @@ def compute_prediction_consensus(
             Normalised binary Shannon entropy of the ensemble probabilities.
         ``ensemble_matches_majority``
             Whether the ensemble agreed with the base-model majority vote.
+        ``probability_divergence``
+            Pairwise Jensen-Shannon divergence across the base-model class
+            distributions. See :func:`compute_probability_divergence`.
     """
     votes: Dict[str, int] = {name: 0 for name in CLASS_NAMES}
     selected_confidences: List[float] = []
@@ -148,6 +241,7 @@ def compute_prediction_consensus(
         "ensemble_matches_majority": bool(
             majority_class is not None and ensemble_prediction == majority_class
         ),
+        "probability_divergence": compute_probability_divergence(individual_models),
     }
 
 
@@ -205,8 +299,8 @@ def aggregate_gradcams(
     """Combine per-model Grad-CAM maps into consensus and disagreement maps.
 
     Invalid entries (``None``, non-finite, wrong dimensionality) are discarded.
-    Remaining maps are resized to a common shape — the largest height and width
-    present — then stacked for a pixel-wise mean and variance.
+    Remaining maps are resized to a common shape (the largest height and width
+    present), then stacked for a pixel-wise mean and variance.
 
     Returns
     -------
