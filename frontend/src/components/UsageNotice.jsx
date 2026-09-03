@@ -1,29 +1,24 @@
 const LIMITATIONS = [
   {
     title: "Probabilities are not medical certainty",
-    body: "Model confidence, prediction margin, and predictive entropy describe how this ensemble behaved on this image. They are uncalibrated and say nothing about whether a prediction is medically correct.",
+    body: "Model confidence, prediction margin, predictive entropy, and probability divergence describe how this ensemble behaved on this image. They are uncalibrated.",
   },
   {
     title: "Grad-CAM shows attribution, not cause",
-    body: "The heatmaps mark regions the network was sensitive to when producing its output. They are not evidence of pathology and do not localise a stone.",
+    body: "The heatmaps mark regions a network was sensitive to when producing its output. They are not evidence of pathology and do not localize a finding.",
   },
   {
-    title: "Disagreement is a model-behaviour signal",
-    body: "When base models split, the ensemble sits on a region of input space where its members generalise differently. That is informative about the models, not about the patient.",
+    title: "Disagreement is a signal to inspect",
+    body: "When base models disagree, their predictions differ on this image. Inspect the individual probabilities and attribution maps before interpreting the ensemble output.",
   },
 ];
 
-export default function ResearchNotice() {
+export default function UsageNotice() {
   return (
-    <section className="panel p-6 sm:p-7" aria-labelledby="research-notice-heading">
-      <h2 id="research-notice-heading" className="headline text-lg text-teal-deep">
-        Research limitations
+    <section className="panel p-6 sm:p-7" aria-labelledby="usage-notice-heading">
+      <h2 id="usage-notice-heading" className="headline text-lg text-teal-deep">
+        Reading these results
       </h2>
-
-      <p className="mt-3 rounded-card border border-pink-mid bg-pink/40 px-4 py-3 text-[0.88rem] font-medium leading-relaxed text-pink-deep">
-        SendCalyx is a research and educational prototype and is not intended for clinical
-        diagnosis or medical decision-making.
-      </p>
 
       <div className="mt-5 grid gap-5 sm:grid-cols-3">
         {LIMITATIONS.map((item) => (
@@ -33,6 +28,11 @@ export default function ResearchNotice() {
           </div>
         ))}
       </div>
+
+      <p className="mt-6 border-t border-line-soft pt-4 text-[0.82rem] leading-relaxed text-ink-faint">
+        For research and educational use only. Not intended for clinical diagnosis or
+        medical decision-making.
+      </p>
     </section>
   );
 }
