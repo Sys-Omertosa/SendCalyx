@@ -27,6 +27,8 @@ COPY --from=builder /app/.venv /app/.venv
 COPY app.py app_utils.py analysis.py architectures.py ./
 COPY models/ ./models/
 
-EXPOSE 8000
+# The app binds to $PORT, which container platforms such as Cloud Run inject
+# (commonly 8080). The default above applies when nothing is provided.
+EXPOSE 8080
 
 CMD ["python", "app.py"]

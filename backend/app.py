@@ -98,8 +98,8 @@ async def root():
         "model_loaded": model is not None,
         "device": str(device) if device else "unknown",
         "disclaimer": (
-            "SendCalyx is a research and educational prototype and is not intended "
-            "for clinical diagnosis or medical decision-making."
+            "For research and educational use only. Not intended for clinical "
+            "diagnosis or medical decision-making."
         ),
     }
 
