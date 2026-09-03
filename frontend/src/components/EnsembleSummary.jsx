@@ -1,17 +1,6 @@
-import { Timer } from "lucide-react";
-import { formatClassName, formatNumber, formatPercent } from "../utils/api.js";
+import { formatClassName, formatPercent } from "../utils/api.js";
 
-function Readout({ label, value, hint }) {
-  return (
-    <div className="rounded-card border border-line-soft bg-mint-pale/45 px-4 py-3">
-      <p className="text-[0.78rem] text-ink-faint">{label}</p>
-      <p className="figure mt-1 text-lg font-semibold text-teal-deep">{value}</p>
-      {hint && <p className="mt-0.5 text-[0.72rem] leading-snug text-ink-faint">{hint}</p>}
-    </div>
-  );
-}
-
-function ProbabilityRow({ label, value, tone }) {
+function ProbabilityRow({ label, value, emphasis }) {
   const pct = Math.max(0, Math.min(1, value ?? 0)) * 100;
   return (
     <div>
@@ -24,10 +13,9 @@ function ProbabilityRow({ label, value, tone }) {
           className="h-full rounded-full"
           style={{
             width: `${pct}%`,
-            background:
-              tone === "primary"
-                ? "linear-gradient(90deg, var(--color-mint) 0%, var(--color-teal) 100%)"
-                : "var(--color-mint-mid)",
+            background: emphasis
+              ? "linear-gradient(90deg, var(--color-mint) 0%, var(--color-teal) 100%)"
+              : "var(--color-mint-mid)",
           }}
         />
       </div>
@@ -36,23 +24,33 @@ function ProbabilityRow({ label, value, tone }) {
 }
 
 /**
- * The stacked meta-learner's own output: what it predicted and how decisive
- * that output was.
+ * The headline conclusion: what the meta-learner predicted and how the base
+ * models voted, kept together so the main finding is not split across cards.
  */
-export default function EnsembleSummary({ ensemble, consensus, processingTime }) {
-  const prediction = formatClassName(ensemble?.prediction);
+export default function EnsembleSummary({ ensemble, consensus }) {
   const isStone = ensemble?.prediction === "Kidney_stone";
   const probabilities = ensemble?.probabilities ?? {};
-  const entropy = consensus?.ensemble_entropy;
+  const disagrees = Boolean(consensus?.disagreement_flag);
 
   return (
     <section className="panel p-6 sm:p-7" aria-labelledby="ensemble-summary-heading">
-      <h2 id="ensemble-summary-heading" className="headline text-lg text-teal-deep">
-        Ensemble summary
-      </h2>
-      <p className="mt-1 text-[0.82rem] text-ink-faint">
-        Output of the stacked meta-learner over three base CNNs.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 id="ensemble-summary-heading" className="headline text-lg text-teal-deep">
+          Ensemble result
+        </h2>
+        <span
+          className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[0.78rem] font-semibold"
+          style={{
+            borderColor: disagrees ? "var(--color-pink-mid)" : "var(--color-mint)",
+            background: disagrees ? "rgba(249,210,228,0.5)" : "rgba(220,241,234,0.8)",
+            color: disagrees ? "var(--color-pink-deep)" : "var(--color-teal-deep)",
+          }}
+        >
+          {disagrees
+            ? `Split vote ${consensus.majority_votes}/${consensus.num_models}`
+            : `Unanimous ${consensus?.majority_votes ?? 0}/${consensus?.num_models ?? 0}`}
+        </span>
+      </div>
 
       <div
         className="mt-5 rounded-card border p-5"
@@ -64,8 +62,8 @@ export default function EnsembleSummary({ ensemble, consensus, processingTime })
         }}
       >
         <p className="text-[0.8rem] text-ink-soft">Ensemble prediction</p>
-        <p className="headline mt-1 text-[clamp(1.7rem,3.6vw,2.3rem)] leading-tight text-teal-dark">
-          {prediction}
+        <p className="display mt-1 text-[clamp(1.8rem,3.8vw,2.4rem)] text-teal-dark">
+          {formatClassName(ensemble?.prediction)}
         </p>
         <p className="figure mt-2 text-sm text-ink-soft">
           Model confidence {formatPercent(ensemble?.confidence)}
@@ -76,40 +74,10 @@ export default function EnsembleSummary({ ensemble, consensus, processingTime })
         <ProbabilityRow
           label="Kidney stone"
           value={probabilities.Kidney_stone}
-          tone={isStone ? "primary" : "muted"}
+          emphasis={isStone}
         />
-        <ProbabilityRow
-          label="Normal"
-          value={probabilities.Normal}
-          tone={isStone ? "muted" : "primary"}
-        />
+        <ProbabilityRow label="Normal" value={probabilities.Normal} emphasis={!isStone} />
       </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Readout
-          label="Prediction margin"
-          value={formatPercent(consensus?.ensemble_margin)}
-          hint="Gap between the two class probabilities"
-        />
-        <Readout
-          label="Predictive entropy"
-          value={formatNumber(entropy, 3)}
-          hint="0 one-sided · 1 even split"
-        />
-        <Readout
-          label="Processing time"
-          value={
-            typeof processingTime === "number" ? `${processingTime.toFixed(2)}s` : "—"
-          }
-          hint="Inference plus attribution"
-        />
-      </div>
-
-      <p className="mt-4 flex items-start gap-2 text-[0.75rem] leading-snug text-ink-faint">
-        <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        Margin and entropy describe how decisive this model output was. They are not
-        calibrated uncertainty and not a probability that the prediction is correct.
-      </p>
     </section>
   );
 }
