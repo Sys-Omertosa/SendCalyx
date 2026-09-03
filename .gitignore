@@ -1,0 +1,45 @@
+SEN-D/
+CLAUDE.md
+context.pdf
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Local datasets (never commit raw medical imagery)
+Dataset/
+Dataset_Augmented/
+backend/Dataset/
+backend/Dataset_Augmented/
+data/
+
+# Temporary inference / debug output
+tmp/
+outputs/
+*.log
+scratch/
+Screenshot*.png
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local agent settings
+.claude/settings.local.json
