@@ -23,6 +23,8 @@ from analysis import (  # noqa: E402
     aggregate_gradcams,
     build_input_metadata,
     compute_prediction_consensus,
+    compute_probability_divergence,
+    jensen_shannon_divergence,
     normalize_map,
     normalized_binary_entropy,
     resize_map,
@@ -149,6 +151,125 @@ class TestPredictiveEntropy(unittest.TestCase):
             {"m": base_model("Normal", 0.4, 0.6)}, ensemble(0.5, 0.5)
         )
         self.assertAlmostEqual(result["ensemble_entropy"], 1.0, places=9)
+
+
+class TestJensenShannonDivergence(unittest.TestCase):
+    def test_identical_distributions_are_zero(self) -> None:
+        self.assertAlmostEqual(jensen_shannon_divergence([0.7, 0.3], [0.7, 0.3]), 0.0, places=9)
+        self.assertAlmostEqual(jensen_shannon_divergence([0.5, 0.5], [0.5, 0.5]), 0.0, places=9)
+
+    def test_symmetry(self) -> None:
+        p, q = [0.9, 0.1], [0.25, 0.75]
+        self.assertAlmostEqual(
+            jensen_shannon_divergence(p, q), jensen_shannon_divergence(q, p), places=12
+        )
+
+    def test_opposed_one_hot_distributions_approach_one(self) -> None:
+        self.assertGreater(jensen_shannon_divergence([1.0, 0.0], [0.0, 1.0]), 0.999)
+
+    def test_bounded_in_unit_interval(self) -> None:
+        for p in (0.0, 0.01, 0.3, 0.5, 0.87, 1.0):
+            for q in (0.0, 0.05, 0.5, 0.99, 1.0):
+                value = jensen_shannon_divergence([p, 1 - p], [q, 1 - q])
+                self.assertTrue(math.isfinite(value))
+                self.assertGreaterEqual(value, 0.0)
+                self.assertLessEqual(value, 1.0)
+
+    def test_known_value_for_uniform_versus_one_hot(self) -> None:
+        # M = [0.75, 0.25]; JSD = 0.5*log2(4/3) + 0.5*(0.5*log2(2/3) + 0.5*log2(2))
+        expected = 0.5 * math.log2(1 / 0.75) + 0.5 * (
+            0.5 * math.log2(0.5 / 0.75) + 0.5 * math.log2(0.5 / 0.25)
+        )
+        self.assertAlmostEqual(
+            jensen_shannon_divergence([1.0, 0.0], [0.5, 0.5]), expected, places=9
+        )
+        self.assertAlmostEqual(expected, 0.3112781244, places=9)
+
+    def test_grows_with_separation(self) -> None:
+        values = [
+            jensen_shannon_divergence([0.5, 0.5], [q, 1 - q]) for q in (0.5, 0.6, 0.8, 0.99)
+        ]
+        self.assertEqual(values, sorted(values))
+
+    def test_zero_probabilities_stay_finite(self) -> None:
+        value = jensen_shannon_divergence([0.0, 1.0], [1e-12, 1 - 1e-12])
+        self.assertTrue(math.isfinite(value))
+
+    def test_degenerate_inputs_are_safe(self) -> None:
+        self.assertEqual(jensen_shannon_divergence([], []), 0.0)
+        self.assertEqual(jensen_shannon_divergence([0.0, 0.0], [0.5, 0.5]), 0.0)
+        self.assertEqual(jensen_shannon_divergence([0.5, 0.5], [0.2, 0.3, 0.5]), 0.0)
+
+
+class TestProbabilityDivergence(unittest.TestCase):
+    def test_identical_models_give_zero(self) -> None:
+        models = {
+            "a": base_model("Kidney_stone", 0.8, 0.2),
+            "b": base_model("Kidney_stone", 0.8, 0.2),
+            "c": base_model("Kidney_stone", 0.8, 0.2),
+        }
+        result = compute_probability_divergence(models)
+        self.assertTrue(result["available"])
+        self.assertEqual(len(result["pairwise"]), 3)
+        self.assertAlmostEqual(result["mean"], 0.0, places=9)
+        self.assertAlmostEqual(result["max"], 0.0, places=9)
+
+    def test_pair_count_and_mean_max(self) -> None:
+        models = {
+            "a": base_model("Kidney_stone", 1.0, 0.0),
+            "b": base_model("Kidney_stone", 1.0, 0.0),
+            "c": base_model("Normal", 0.0, 1.0),
+        }
+        result = compute_probability_divergence(models)
+        values = sorted(entry["value"] for entry in result["pairwise"])
+        self.assertEqual(len(values), 3)
+        # a-b identical (0), a-c and b-c fully opposed (1 each).
+        self.assertAlmostEqual(values[0], 0.0, places=6)
+        self.assertAlmostEqual(values[1], 1.0, places=3)
+        self.assertAlmostEqual(values[2], 1.0, places=3)
+        self.assertAlmostEqual(result["mean"], sum(values) / 3, places=9)
+        self.assertAlmostEqual(result["max"], max(values), places=9)
+
+    def test_most_divergent_pair_is_identified(self) -> None:
+        models = {
+            "inception_v3": base_model("Kidney_stone", 0.95, 0.05),
+            "inception_resnet_v2": base_model("Kidney_stone", 0.92, 0.08),
+            "xception": base_model("Normal", 0.10, 0.90),
+        }
+        result = compute_probability_divergence(models)
+        self.assertIn("xception", result["most_divergent_pair"])
+        self.assertEqual(len(result["most_divergent_pair"]), 2)
+
+    def test_single_model_is_unavailable(self) -> None:
+        result = compute_probability_divergence({"a": base_model("Normal", 0.2, 0.8)})
+        self.assertFalse(result["available"])
+        self.assertEqual(result["pairwise"], [])
+        self.assertEqual(result["mean"], 0.0)
+        self.assertIsNone(result["most_divergent_pair"])
+
+    def test_empty_input_is_unavailable(self) -> None:
+        self.assertFalse(compute_probability_divergence({})["available"])
+
+    def test_models_without_usable_probabilities_are_skipped(self) -> None:
+        models = {
+            "a": base_model("Kidney_stone", 0.8, 0.2),
+            "b": base_model("Kidney_stone", 0.7, 0.3),
+            "c": {"prediction": "Normal", "confidence": 0.5, "probabilities": {}},
+        }
+        result = compute_probability_divergence(models)
+        self.assertEqual(len(result["pairwise"]), 1)
+        self.assertEqual(result["pairwise"][0]["models"], ["a", "b"])
+
+    def test_exposed_through_consensus(self) -> None:
+        models = {
+            "a": base_model("Kidney_stone", 0.9, 0.1),
+            "b": base_model("Normal", 0.2, 0.8),
+        }
+        consensus = compute_prediction_consensus(models, ensemble(0.6, 0.4))
+        divergence = consensus["probability_divergence"]
+        self.assertTrue(divergence["available"])
+        self.assertTrue(math.isfinite(divergence["mean"]))
+        self.assertGreater(divergence["mean"], 0.0)
 
 
 class TestGradCamAggregation(unittest.TestCase):
