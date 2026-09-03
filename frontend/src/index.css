@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+/*
+  SendCalyx design tokens.
+
+  The palette is teal/mint-led: deep teal anchors type and controls, mint carries
+  data and supporting UI, and soft pink is reserved for a small number of warm
+  accents — chiefly the disagreement signal, so it stays meaningful.
+
+  --font-display is set apart deliberately: the wordmark is drawn in a wide,
+  heavy geometric face. Archivo at width 125 / weight 900 stands in for the
+  licensed "Climax" typeface; drop Climax into the stack below to swap it in.
+*/
+@theme {
+  --font-display: "Climax", "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Core palette */
+  --color-teal: #007e79;
+  --color-teal-deep: #01524f;
+  --color-teal-dark: #06302f;
+  --color-mint: #67c9b5;
+  --color-mint-mid: #9bdcc9;
+  --color-mint-pale: #dcf1ea;
+  --color-pink: #f9d2e4;
+  --color-pink-mid: #f0b4d0;
+  --color-pink-deep: #b8517f;
+
+  /* Neutrals derived from the palette rather than plain grey */
+  --color-paper: #f1f6f4;
+  --color-surface: #ffffff;
+  --color-ink: #06302f;
+  --color-ink-soft: #3f6260;
+  --color-ink-faint: #6f8b89;
+  --color-line: #d8e7e3;
+  --color-line-soft: #e8f1ee;
+
+  --radius-panel: 1.5rem;
+  --radius-card: 1rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* The gradient atmosphere: three soft washes anchored to the palette,
+     painted once behind the whole app rather than repeated per card. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(64rem 40rem at 92% -8%, rgba(249, 210, 228, 0.72), transparent 62%),
+      radial-gradient(52rem 38rem at 4% 8%, rgba(103, 201, 181, 0.44), transparent 60%),
+      radial-gradient(70rem 46rem at 50% 118%, rgba(0, 126, 121, 0.3), transparent 66%);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-mint);
+    color: var(--color-teal-dark);
+  }
+}
+
+@layer utilities {
+  /* Wordmark: wide, heavy, tightly set. */
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-stretch: 125%;
+    font-variation-settings: "wdth" 125, "wght" 900;
+    letter-spacing: -0.028em;
+    line-height: 0.86;
+  }
+
+  .headline {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variation-settings: "wdth" 112, "wght" 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* Numeric readouts line up column to column. */
+  .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-panel);
+  }
+
+  .hairline {
+    border-color: var(--color-line-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
