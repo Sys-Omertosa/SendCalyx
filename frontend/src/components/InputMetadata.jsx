@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react";
-import { formatBytes } from "../utils/api.js";
+import { MISSING, formatBytes } from "../utils/api.js";
 
 function Row({ label, value }) {
   return (
@@ -24,7 +24,7 @@ export default function InputMetadata({ metadata }) {
 
       <dl className="mt-3 divide-y divide-line-soft">
         <Row label="Source dimensions" value={`${metadata.width} × ${metadata.height}`} />
-        <Row label="Format" value={metadata.format ?? "—"} />
+        <Row label="Format" value={metadata.format ?? MISSING} />
         <Row label="File size" value={formatBytes(metadata.file_size_bytes)} />
         <Row label="Model input" value={`${inputWidth} × ${inputHeight}`} />
       </dl>

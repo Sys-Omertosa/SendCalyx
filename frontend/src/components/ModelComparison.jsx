@@ -40,8 +40,55 @@ export default function ModelComparison({ individualModels, consensus }) {
         Class probabilities from each base CNN, before the meta-learner combines them.
       </p>
 
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[42rem] border-collapse text-left">
+      {/* Small screens: one card per model, so nothing needs sideways scrolling. */}
+      <ul className="mt-5 space-y-3 md:hidden">
+        {models.map(([id, model]) => {
+          const dissents =
+            consensus?.majority_class && model.prediction !== consensus.majority_class;
+          return (
+            <li
+              key={id}
+              className={`rounded-card border p-4 ${
+                dissents ? "border-pink-mid bg-pink/25" : "border-line-soft bg-surface"
+              }`}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-[0.92rem] font-semibold text-ink">
+                  {model.display_name ?? id}
+                </p>
+                <p className="figure text-[0.85rem] font-semibold text-teal-deep">
+                  {formatPercent(model.confidence)}
+                </p>
+              </div>
+              <p className="mt-0.5 text-[0.82rem] text-ink-soft">
+                {formatClassName(model.prediction)}
+                {dissents && (
+                  <span className="ml-2 font-medium text-pink-deep">
+                    Differs from majority
+                  </span>
+                )}
+              </p>
+              <dl className="mt-3 space-y-2">
+                <div>
+                  <dt className="text-[0.76rem] text-ink-faint">Kidney stone</dt>
+                  <dd className="mt-1">
+                    <Bar value={model.probabilities?.Kidney_stone} tone="stone" />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[0.76rem] text-ink-faint">Normal</dt>
+                  <dd className="mt-1">
+                    <Bar value={model.probabilities?.Normal} tone="normal" />
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="mt-5 hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[38rem] border-collapse text-left">
           <thead>
             <tr className="border-b border-line text-[0.78rem] font-semibold text-ink-faint">
               <th scope="col" className="py-2.5 pr-4 font-semibold">
