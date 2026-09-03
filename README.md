@@ -10,7 +10,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-67C9B5?logo=pytorch&logoColor=white)](https://pytorch.org)
 [![React](https://img.shields.io/badge/React-01524F?logo=react&logoColor=white)](https://react.dev)
 
-![The SendCalyx analysis workspace](assets/sendcalyx-workspace.png)
+![The SendCalyx landing page](assets/sendcalyx-landing.png)
 
 ---
 
@@ -19,8 +19,8 @@
 Most kidney-stone classifiers return one label and one number. SendCalyx returns the
 reasoning trail behind that label.
 
-A CT slice goes through three convolutional backbones — InceptionV3, InceptionResNetV2,
-and Xception — whose six class probabilities feed a small stacked meta-learner. SendCalyx
+A CT slice goes through three convolutional backbones (InceptionV3, InceptionResNetV2,
+and Xception) whose six class probabilities feed a small stacked meta-learner. SendCalyx
 then reports what each member of the ensemble decided independently, how far apart those
 decisions were, and where in the image each network placed its attribution. Regions where
 the attribution maps agree and regions where they diverge are computed and rendered
@@ -29,8 +29,8 @@ separately.
 The point is inspectability. When the base models split, that split is the most
 interesting thing on the screen, and the interface treats it that way.
 
-**SendCalyx is a research and educational prototype and is not intended for clinical
-diagnosis or medical decision-making.**
+**For research and educational use only. Not intended for clinical diagnosis or medical
+decision-making.**
 
 ---
 
@@ -41,6 +41,7 @@ diagnosis or medical decision-making.**
 | **Stacked ensemble inference** | Three ImageNet-scale CNN backbones with custom classifier heads, combined by a trained probability-level meta-learner. |
 | **Per-model transparency** | Every base model's prediction, selected-class confidence, and full class distribution are returned alongside the ensemble output. |
 | **Prediction consensus** | Vote counts, agreement ratio, unanimity, confidence spread, prediction margin, and normalised predictive entropy. |
+| **Probability divergence** | Pairwise Jensen-Shannon divergence across base-model class distributions, catching disagreement that a vote count hides. |
 | **Per-model Grad-CAM** | An attribution overlay for each backbone, taken at its last spatial feature map for the class that model selected. |
 | **Attribution consensus** | Pixel-wise mean of the available Grad-CAM maps: where the ensemble consistently looks. |
 | **Attribution disagreement** | Pixel-wise variance across those maps: where the ensemble looks differently. |
@@ -74,8 +75,8 @@ diagnosis or medical decision-making.**
               ┌───────────────────┴───────────────────┐
               ↓                                       ↓
      prediction consensus                    Grad-CAM per model
-   votes, agreement, spread,                          │
-   margin, predictive entropy               ┌─────────┴─────────┐
+   votes, agreement, spread, margin,                  │
+   entropy, probability divergence          ┌─────────┴─────────┐
                                             ↓                   ↓
                                      pixel-wise mean     pixel-wise variance
                                   (attribution consensus) (attribution disagreement)
@@ -92,8 +93,10 @@ backend/
   models/            trained checkpoints (Git LFS)
   tests/             analysis unit tests, no model loading
 frontend/
-  src/components/    Header, UploadWorkspace, EnsembleSummary, ConsensusPanel,
-                     ModelComparison, SaliencyExplorer, InputMetadata, ResearchNotice
+  public/            logo, favicon set, Climax webfont
+  src/components/    Header, Landing, EnsembleDiagram, UploadWorkspace, EnsembleSummary,
+                     ConsensusPanel, MetricRail, ModelComparison, SaliencyExplorer,
+                     InputMetadata, UsageNotice, Footer
   src/utils/api.js   API client and formatters
 ```
 
@@ -141,6 +144,27 @@ that a prediction is medically correct.
 | `ensemble_margin` | \|P(Kidney_stone) − P(Normal)\| from the meta-learner output. |
 | `ensemble_entropy` | Binary Shannon entropy of the ensemble probabilities, divided by `log 2`. Near `0` for a one-sided distribution, near `1` at an even split. Clipped with an epsilon so it stays finite. |
 | `ensemble_matches_majority` | Whether the meta-learner agreed with the base-model majority. |
+| `probability_divergence` | Pairwise Jensen-Shannon divergence across the base-model class distributions. See below. |
+
+### Probability divergence
+
+Vote counts answer whether the models agreed. They do not capture how far apart the
+models were when they agreed, and three backbones can select the same class while
+distributing probability mass very differently.
+
+For every pair of base models, with `M = 0.5 * (P + Q)`:
+
+```text
+JSD(P, Q) = 0.5 * KL(P || M) + 0.5 * KL(Q || M)
+```
+
+Computed with log base 2, which bounds the result in `[0, 1]`: `0` for identical
+distributions, `1` when two models place all their mass on different classes. Inputs are
+renormalised and epsilon-clipped, so zero probabilities are safe.
+
+The response carries every pair, plus `mean`, `max`, and `most_divergent_pair`. The
+interface surfaces the mean, labelled "probability divergence". Like the other
+quantities here it describes model behaviour, not uncertainty.
 
 ---
 
@@ -154,7 +178,7 @@ The raw normalised maps are kept in memory long enough to aggregate them:
 
 1. discard maps that are missing, non-2D, or non-finite;
 2. rescale each surviving map to `[0, 1]`;
-3. resize them to a common shape — backbones produce different grid sizes;
+3. resize them to a common shape (backbones produce different grid sizes);
 4. stack and take the pixel-wise **mean** and pixel-wise **variance**;
 5. report `models_included`.
 
@@ -219,7 +243,18 @@ curl -X POST http://localhost:8000/predict \
     "confidence_spread": 0.0026,
     "ensemble_margin": 0.9356,
     "ensemble_entropy": 0.2053,
-    "ensemble_matches_majority": true
+    "ensemble_matches_majority": true,
+    "probability_divergence": {
+      "pairwise": [
+        { "models": ["inception_v3", "inception_resnet_v2"], "value": 0.0019 },
+        { "models": ["inception_v3", "xception"], "value": 0.0012 },
+        { "models": ["inception_resnet_v2", "xception"], "value": 0.0001 }
+      ],
+      "mean": 0.0011,
+      "max": 0.0019,
+      "most_divergent_pair": ["inception_v3", "inception_resnet_v2"],
+      "available": true
+    }
   },
   "xai_consensus": {
     "mean_gradcam": "<base64 PNG>",
@@ -247,7 +282,7 @@ curl -X POST http://localhost:8000/predict \
 
 ## Running locally
 
-**Requirements:** Python 3.10+, Node 18+, and [Git LFS](https://git-lfs.com) — the
+**Requirements:** Python 3.10+, Node 18+, and [Git LFS](https://git-lfs.com): the
 checkpoints in `backend/models/` are LFS-tracked and total roughly 400 MB.
 
 ```bash
@@ -270,8 +305,8 @@ python backend/app.py           # http://localhost:8000
 ```
 
 CUDA is used automatically when a GPU-enabled PyTorch build reports it as available;
-otherwise the service runs on CPU. A single CPU prediction — three backbones plus four
-attribution maps — takes a few seconds.
+otherwise the service runs on CPU. A single CPU prediction, three backbones plus four attribution maps, takes a few
+seconds.
 
 Verify the ensemble loaded:
 
@@ -306,19 +341,34 @@ arrays in well under a second.
 
 ```bash
 docker build -t sendcalyx-api backend/
-docker run -p 8000:8000 sendcalyx-api
+docker run -p 8000:8000 -e PORT=8000 sendcalyx-api
 ```
 
 ---
 
-## Training background
+## Deployment
 
-The checkpoints shipped here were produced by an earlier training run under this
-configuration:
+The two halves deploy independently.
+
+**Backend.** Any container host that can run a CPU PyTorch image. The service binds to
+`$PORT`, so platforms that inject a port (Cloud Run injects `8080`) work without changes.
+Set `SENDCALYX_ALLOWED_ORIGINS` to a comma-separated list of the origins allowed to call
+the API. Allow generous startup time and memory: roughly 400 MB of weights load before
+the first request is served.
+
+**Frontend.** Any static host. Build with `npm run build` in `frontend/` and serve
+`dist/`. Set `VITE_API_URL` at build time to the deployed API origin; it defaults to
+`http://localhost:8000`.
+
+---
+
+## Model training
+
+The shipped checkpoints correspond to this training configuration:
 
 | | |
 | --- | --- |
-| Input | 299 × 299 RGB, ImageNet mean/std normalisation |
+| Input | 299 x 299 RGB, ImageNet mean/std normalisation |
 | Loss | `CrossEntropyLoss` |
 | Optimiser | Adam |
 | Base-model schedule | 20 epochs with a frozen backbone, then 5 epochs fine-tuning the full network |
@@ -326,27 +376,27 @@ configuration:
 | Meta-learner | 5 epochs at `1e-4` over the three frozen base models' probabilities |
 | Batch size | 32 |
 
-Two details are worth stating plainly rather than smoothing over:
+Augmentation expands each source image into eight variants: a resized original plus
+vertical flip, horizontal flip, height shift, width shift, rotation, shear, and zoom.
 
-- **InceptionV3 and InceptionResNetV2 were initialised from ImageNet weights. Xception was
-  not** — it was created without a pretrained flag and therefore trained from random
-  initialisation. This is preserved in SendCalyx so the shipped checkpoint keeps loading
-  into the architecture it was trained in.
-- **No training or evaluation run has been carried out inside SendCalyx.** The earlier
-  implementation reported test-set figures of 98.74% accuracy, 98.57% precision, 98.96%
-  recall, 98.76% F1, and 97.48% MCC. Those are **historical numbers from that earlier
-  implementation, not results measured by this project**, and they are reproduced here only
-  as provenance for the checkpoints. Treat them as unverified until a new evaluation run is
-  performed and recorded.
+**Backbone initialisation is not uniform.** InceptionV3 and InceptionResNetV2 start from
+ImageNet weights. Xception is initialised without ImageNet pretrained weights in the
+baseline training configuration, and therefore trains from random initialisation. The
+architecture definitions preserve this so the checkpoints load exactly as trained.
 
-Training augmentation expanded each source image into eight variants: a resized original
-plus vertical flip, horizontal flip, height shift, width shift, rotation, shear, and zoom.
+### Evaluation
+
+No controlled evaluation run is recorded in this repository yet. Rather than quote
+figures that cannot be reproduced from what is published here, this README reports none.
+Accuracy, precision, recall, F1, MCC, and a confusion matrix will be added, together with
+the hardware, library versions, and checkpoint identity used, once such a run is
+performed and recorded.
 
 ### Relationship to published work
 
 The ensemble design is **inspired by the stacked-ensemble methodology described in
 published work on kidney-stone detection from CT imagery** (see
-[Journal of King Saud University – Computer and Information Sciences, 2024](https://www.sciencedirect.com/science/article/pii/S1319157824002192)).
+[Journal of King Saud University, Computer and Information Sciences, 2024](https://www.sciencedirect.com/science/article/pii/S1319157824002192)).
 It is not a verified reproduction of that architecture: the implementation here uses three
 base models and a specific meta-learner topology, and the published design may differ in
 the number or identity of its base models. Where the paper and this code disagree, this
@@ -359,7 +409,7 @@ README describes the code that actually runs.
 The checkpoints were trained on a hybrid dataset assembled from:
 
 1. [Axial CT Imaging Dataset for Kidney Stone Detection](https://www.kaggle.com/datasets/orvile/axial-ct-imaging-dataset-kidney-stone-detection) (Kaggle);
-2. CT data associated with Elazığ Fethi Sekin City Hospital, Turkey — see
+2. CT data associated with Elazığ Fethi Sekin City Hospital, Turkey. See
    [Yildirim et al., *Computers in Biology and Medicine*](https://www.sciencedirect.com/science/article/abs/pii/S0010482521003632).
 
 **No medical imagery is distributed with this repository.** Dataset licensing is separate
@@ -370,14 +420,12 @@ independently established. Obtain the data from the sources above under their ow
 
 ## Limitations
 
-- **The train/test split is not patient-disjoint, and contains measured duplicate
-  leakage.** The checkpoints were trained against pre-existing `Train/` and `Test/`
-  directories. A content-hash audit of those 5,163 source images found 4,981 unique
-  images, 30 test images (1.99% of the test set) byte-identical to a training image, and
-  5 images appearing under both class labels. Patient and study identity could not be
-  recovered: the DICOM-style filenames share a single SOP root and carry no series-level
-  grouping, so overlap at the patient level is plausible but unmeasured and is likely
-  larger than the exact-duplicate rate. Historical accuracy figures should be read with
+- **Cross-split duplicates are present, and split independence is unverified.** An
+  exact-content hash audit of the 5,163 source images found 4,981 unique image contents,
+  30 test images (1.99% of the test set) byte-identical to a training image, and 5 image
+  contents appearing under both class labels. Patient or study-level independence could
+  not be verified from the available metadata: the DICOM-style filenames share a single
+  SOP root and carry no series-level grouping. Any reported accuracy should be read with
   that caveat.
 - **Probabilities are uncalibrated.** No temperature scaling or other calibration has been
   applied. Confidence, margin, and entropy describe the shape of the model output, nothing
@@ -395,11 +443,11 @@ independently established. Obtain the data from the sources above under their ow
 
 ---
 
-## Research disclaimer
+## Usage and safety
 
-SendCalyx is a research and educational prototype and is not intended for clinical
-diagnosis or medical decision-making. It is not a medical device, has not been clinically
-validated, and must not be used to inform care for any patient.
+For research and educational use only. Not intended for clinical diagnosis or medical
+decision-making. SendCalyx is not a medical device, has not been clinically validated,
+and must not be used to inform care for any patient.
 
 Model confidence is not diagnostic certainty. Grad-CAM attribution is not proof of
 pathology. Model disagreement is a signal about the models, not about a patient.
@@ -410,6 +458,6 @@ pathology. Model disagreement is a signal about the models, not about a patient.
 
 Released under the [MIT License](LICENSE).
 
-Third-party components — PyTorch, torchvision, `timm`, pretrained backbone weights, and
-the medical imaging datasets referenced above — retain their own licenses and provenance
+Third-party components (PyTorch, torchvision, `timm`, pretrained backbone weights, and
+the medical imaging datasets referenced above) retain their own licenses and provenance
 requirements.
