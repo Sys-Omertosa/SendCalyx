@@ -5,12 +5,20 @@
 
   The palette is teal/mint-led: deep teal anchors type and controls, mint carries
   data and supporting UI, and soft pink is reserved for a small number of warm
-  accents — chiefly the disagreement signal, so it stays meaningful.
+  accents, chiefly the disagreement signal, so it stays meaningful.
 
-  --font-display is set apart deliberately: the wordmark is drawn in a wide,
-  heavy geometric face. Archivo at width 125 / weight 900 stands in for the
-  licensed "Climax" typeface; drop Climax into the stack below to swap it in.
+  Climax is a static OTF (single Regular weight, no variable axes), so the
+  wordmark styles below set no variation settings. Archivo is the fallback and
+  is close enough in width and weight to avoid a jarring swap.
 */
+@font-face {
+  font-family: "Climax";
+  src: url("/fonts/climax.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-display: "Climax", "Archivo", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -47,6 +55,15 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    /* Anchor targets clear the sticky header. */
+    scroll-padding-top: 5rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 
   body {
@@ -59,8 +76,8 @@
     text-rendering: optimizeLegibility;
   }
 
-  /* The gradient atmosphere: three soft washes anchored to the palette,
-     painted once behind the whole app rather than repeated per card. */
+  /* Ambient page wash. Deliberately weak: the hero paints its own, stronger
+     gradient, and analytical surfaces sit on near-white panels above this. */
   body::before {
     content: "";
     position: fixed;
@@ -68,9 +85,8 @@
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(64rem 40rem at 92% -8%, rgba(249, 210, 228, 0.72), transparent 62%),
-      radial-gradient(52rem 38rem at 4% 8%, rgba(103, 201, 181, 0.44), transparent 60%),
-      radial-gradient(70rem 46rem at 50% 118%, rgba(0, 126, 121, 0.3), transparent 66%);
+      radial-gradient(60rem 38rem at 96% -6%, rgba(249, 210, 228, 0.34), transparent 62%),
+      radial-gradient(48rem 34rem at 2% 4%, rgba(103, 201, 181, 0.22), transparent 60%);
   }
 
   :focus-visible {
@@ -86,21 +102,28 @@
 }
 
 @layer utilities {
-  /* Wordmark: wide, heavy, tightly set. */
+  /* Brand wordmark. Climax only: never used for copy, data, or labels. */
   .wordmark {
     font-family: var(--font-display);
-    font-weight: 900;
-    font-stretch: 125%;
-    font-variation-settings: "wdth" 125, "wght" 900;
-    letter-spacing: -0.028em;
-    line-height: 0.86;
+    font-weight: 400;
+    letter-spacing: 0.005em;
+    line-height: 0.92;
   }
 
+  /* Section and panel headings. Kept in the UI face so Climax stays reserved
+     for the brand and long headings do not inherit a display face. */
   .headline {
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-variation-settings: "wdth" 112, "wght" 700;
-    letter-spacing: -0.02em;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.018em;
+  }
+
+  /* Editorial headings on the landing page. */
+  .display {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.028em;
+    line-height: 1.06;
   }
 
   /* Numeric readouts line up column to column. */
@@ -118,6 +141,59 @@
 
   .hairline {
     border-color: var(--color-line-soft);
+  }
+
+  /* Shared page gutter so landing sections and the analysis grid align. */
+  .shell {
+    width: 100%;
+    max-width: 78rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  /* Safety net for scroll reveals: if the viewport observer never fires, the
+     content becomes visible anyway instead of staying at opacity 0. Framer
+     writes an inline opacity once it takes over, which outranks this. */
+  .reveal {
+    animation: reveal-fallback 0s linear 1.6s forwards;
+  }
+
+  @keyframes reveal-fallback {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media print {
+    .reveal {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+
+  /* Small teal section marker. Sentence case, not a tracked-out caps eyebrow. */
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-teal);
+  }
+
+  .section-tag::before {
+    content: "";
+    width: 1.5rem;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--color-mint), var(--color-teal));
   }
 }
 
