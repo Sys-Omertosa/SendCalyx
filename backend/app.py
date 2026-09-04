@@ -44,6 +44,29 @@ DEFAULT_ORIGINS = [
 
 model: Optional[StackedEnsembleNet] = None
 device = None
+# Populated by load_model even when loading fails, so /health can explain why.
+load_diagnostics: dict = {"missing": [], "errors": {}, "device": "unknown"}
+
+
+def is_ready() -> bool:
+    """The service is ready only with the complete, fully loaded ensemble."""
+    return model is not None and model.is_ready
+
+
+def public_load_errors(errors: dict) -> dict:
+    """Load errors with absolute paths reduced to filenames.
+
+    Enough to diagnose a missing or corrupt checkpoint without publishing the
+    container's directory layout.
+    """
+    cleaned = {}
+    for key, message in errors.items():
+        text = str(message)
+        for token in text.split():
+            if "/" in token or "\\" in token:
+                text = text.replace(token, os.path.basename(token.rstrip(":,")))
+        cleaned[key] = text
+    return cleaned
 
 
 def allowed_origins() -> list[str]:
@@ -56,10 +79,13 @@ def allowed_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global model, device
-    model, device = load_model()
-    if model is None:
-        logger.error("Model failed to load; /predict will return 503")
+    global model, device, load_diagnostics
+    model, device, load_diagnostics = load_model()
+    if not is_ready():
+        logger.error(
+            "Ensemble not ready; /predict will return 503. Missing: %s",
+            ", ".join(load_diagnostics.get("missing") or ["unknown"]),
+        )
     yield
     model = None
     device = None
@@ -94,8 +120,8 @@ async def root():
             "kidney CT imagery."
         ),
         "version": "0.1.0",
-        "status": "healthy",
-        "model_loaded": model is not None,
+        "status": "healthy" if is_ready() else "degraded",
+        "model_loaded": is_ready(),
         "device": str(device) if device else "unknown",
         "disclaimer": (
             "For research and educational use only. Not intended for clinical "
@@ -108,20 +134,27 @@ async def root():
 async def health_check():
     """Readiness detail, including which base models actually loaded."""
     return {
-        "status": "healthy" if model is not None else "degraded",
-        "model_loaded": model is not None,
-        "device": str(device) if device else "unknown",
+        "status": "healthy" if is_ready() else "degraded",
+        "model_loaded": is_ready(),
+        "device": str(device) if device else load_diagnostics.get("device", "unknown"),
         "num_base_models": len(model.base_models) if model else 0,
         "base_models": list(model.base_models) if model else [],
-        "load_errors": dict(model.load_errors) if model else {},
+        "missing_components": (
+            model.missing_components() if model else load_diagnostics.get("missing", [])
+        ),
+        "load_errors": public_load_errors(
+            dict(model.load_errors) if model else load_diagnostics.get("errors", {})
+        ),
     }
 
 
 @app.get("/models")
 async def get_models():
     """Describe the loaded ensemble."""
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+    if model is None or not model.is_ready:
+        raise HTTPException(
+            status_code=503, detail="Ensemble is not ready. See /health for detail."
+        )
 
     return {
         "ensemble_architecture": "StackedEnsembleNet",
@@ -143,8 +176,10 @@ async def predict(file: UploadFile = File(...)):
 
     Accepts a single JPEG, PNG, or WebP image of a kidney CT slice.
     """
-    if model is None or device is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+    if model is None or not model.is_ready or device is None:
+        raise HTTPException(
+            status_code=503, detail="Ensemble is not ready. See /health for detail."
+        )
 
     content_type = (file.content_type or "").lower()
     if content_type not in ALLOWED_CONTENT_TYPES:
