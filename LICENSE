@@ -19,12 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party components retain their own licenses and provenance requirements.
-This includes PyTorch, torchvision, `timm`, pretrained ImageNet backbone
-weights, and any medical imaging datasets used for training or evaluation.
-Model checkpoints distributed with this repository are derived from those
-components and from data whose redistribution terms are set by the original
-dataset providers.

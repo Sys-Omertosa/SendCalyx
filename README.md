@@ -468,4 +468,4 @@ Released under the [MIT License](LICENSE).
 
 Third-party components (PyTorch, torchvision, `timm`, pretrained backbone weights, and
 the medical imaging datasets referenced above) retain their own licenses and provenance
-requirements.
+requirements. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
