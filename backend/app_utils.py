@@ -234,22 +234,49 @@ def create_heatmap_overlay(
 
 def load_model(
     model_dir: Optional[str] = None,
-) -> Tuple[Optional[StackedEnsembleNet], Optional[torch.device]]:
-    """Build the ensemble, load every checkpoint, and return it in eval mode."""
+) -> Tuple[Optional[StackedEnsembleNet], Optional[torch.device], Dict[str, Any]]:
+    """Build the ensemble and return it only if every checkpoint loaded.
+
+    Loading is atomic. A partially loaded ensemble is not a degraded service: the
+    meta-learner takes exactly six features from three base models, and an
+    unloaded meta-learner would still emit confident-looking output from random
+    weights. Either the whole ensemble is ready or the service reports itself as
+    unavailable.
+
+    Returns ``(model, device, diagnostics)``. On failure the model and device are
+    ``None`` and the diagnostics describe what was missing, so health reporting
+    stays useful without the caller holding an unusable model object.
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    diagnostics: Dict[str, Any] = {"missing": [], "errors": {}, "device": str(device)}
+
     try:
         model = StackedEnsembleNet(device, model_dir=model_dir)
         model.load_meta_learner()
+
+        diagnostics["errors"] = dict(model.load_errors)
+        diagnostics["missing"] = model.missing_components()
+
+        if not model.is_ready:
+            logger.error(
+                "Ensemble incomplete, refusing to serve. Missing: %s. Errors: %s",
+                ", ".join(diagnostics["missing"]),
+                diagnostics["errors"],
+            )
+            return None, None, diagnostics
+
         model.eval()
         logger.info(
             "Model ready on %s with base models: %s",
             device,
-            ", ".join(model.base_models) or "none",
+            ", ".join(model.base_models),
         )
-        return model, device
+        return model, device, diagnostics
     except Exception as exc:  # noqa: BLE001
         logger.exception("Model failed to load: %s", exc)
-        return None, None
+        diagnostics["errors"] = {"load_model": f"{type(exc).__name__}: {exc}"}
+        diagnostics["missing"] = ["inception_v3", "inception_resnet_v2", "xception", "meta_learner"]
+        return None, None, diagnostics
 
 
 def _run_base_models(
