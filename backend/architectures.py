@@ -164,6 +164,7 @@ class StackedEnsembleNet(nn.Module):
         # the meta-learner, matching how the ensemble was trained.
         self.base_models: Dict[str, nn.Module] = {}
         self.load_errors: Dict[str, str] = {}
+        self.meta_learner_loaded = False
         self._load_base_models()
 
         self.meta_learner = nn.Sequential(
@@ -205,6 +206,29 @@ class StackedEnsembleNet(nn.Module):
                 self.load_errors[model_id] = str(exc)
                 logger.error("Failed to load %s: %s", model_id, exc)
 
+    @property
+    def is_ready(self) -> bool:
+        """True only when the whole ensemble is usable for inference.
+
+        The meta-learner consumes exactly ``3 models x 2 classes = 6`` features,
+        so a partial set of base models is not a degraded configuration, it is an
+        unusable one. A missing meta-learner checkpoint is equally fatal: the
+        randomly initialised layer would still produce confident-looking output.
+        """
+        return (
+            all(model_id in self.base_models for model_id in CHECKPOINT_FILES)
+            and self.meta_learner_loaded
+        )
+
+    def missing_components(self) -> List[str]:
+        """Required checkpoints that did not load, for health reporting."""
+        missing = [
+            model_id for model_id in CHECKPOINT_FILES if model_id not in self.base_models
+        ]
+        if not self.meta_learner_loaded:
+            missing.append("meta_learner")
+        return missing
+
     def load_meta_learner(self) -> bool:
         """Load the trained meta-learner weights. Returns True on success."""
         checkpoint_path = self.model_dir / META_LEARNER_FILE
@@ -217,6 +241,7 @@ class StackedEnsembleNet(nn.Module):
                 checkpoint_path, map_location=self.device, weights_only=True
             )
             self.meta_learner.load_state_dict(state_dict)
+            self.meta_learner_loaded = True
             logger.info("Loaded meta-learner from %s", checkpoint_path.name)
             return True
         except Exception as exc:  # noqa: BLE001
@@ -225,7 +250,18 @@ class StackedEnsembleNet(nn.Module):
             return False
 
     def base_probabilities(self, x: torch.Tensor) -> torch.Tensor:
-        """Concatenated softmax outputs of every loaded base model."""
+        """Concatenated softmax outputs of every base model.
+
+        Refuses to run unless the full ensemble is present: the meta-learner is
+        shaped for exactly six features, and a randomly initialised one would
+        emit plausible-looking probabilities from untrained weights.
+        """
+        if not self.is_ready:
+            raise RuntimeError(
+                "Ensemble is not ready; missing: "
+                + ", ".join(self.missing_components())
+            )
+
         outputs = []
         for model in self.base_models.values():
             model.eval()
