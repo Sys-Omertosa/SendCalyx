@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, ImageUp, Play, RefreshCw, Trash2 } from "lucide-react";
+import WaterSurface from "./WaterSurface.jsx";
 import { ACCEPTED_TYPES, formatBytes, validateImageFile } from "../utils/api.js";
 
 /**
@@ -81,7 +82,7 @@ export default function UploadWorkspace({
                 type="button"
                 onClick={onAnalyze}
                 disabled={isAnalyzing}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-teal px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-teal-deep disabled:cursor-not-allowed disabled:bg-ink-faint"
+                className="btn-primary flex-1 py-3 text-sm disabled:cursor-not-allowed disabled:bg-ink-faint"
               >
                 {isAnalyzing ? (
                   <>
@@ -134,6 +135,10 @@ export default function UploadWorkspace({
                 "linear-gradient(152deg, #f9d2e4 0%, #9bdcc9 24%, #3aa79c 54%, #01524f 100%)",
             }}
           >
+            {/* Top-down water surface over the panel gradient, behind the copy.
+                Pointer movement drags the water. */}
+            <WaterSurface className="rounded-panel" />
+
             <span className="pointer-events-none absolute inset-3 rounded-[1.15rem] border-2 border-dashed border-white/55" />
 
             {/* Keeps the white copy legible where the gradient is lightest. */}
@@ -207,6 +212,15 @@ export default function UploadWorkspace({
 
         <p className="mt-6 border-t border-line-soft pt-5 text-[0.82rem] leading-relaxed text-ink-faint">
           PNG, JPEG, or WebP up to 10 MB. Images are analyzed in memory and are not stored.
+        </p>
+        <p className="mt-3 text-[0.82rem] text-ink-faint">
+          Not sure what to upload?{" "}
+          <a
+            href="#input-guide"
+            className="font-medium text-teal-deep underline-offset-4 hover:underline"
+          >
+            View the input guide
+          </a>
         </p>
       </div>
     </div>
