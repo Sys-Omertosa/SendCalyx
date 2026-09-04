@@ -1,11 +1,21 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pydantic
-torch
-torchvision
-timm
-Pillow
-numpy
-opencv-python-headless
-matplotlib
+# Direct backend dependencies, pinned to the versions verified to load the
+# shipped checkpoints on Python 3.12.
+#
+# torch and torchvision are pinned without a local version suffix so the same
+# file works against PyPI (CUDA build) and the PyTorch CPU index. The Dockerfile
+# passes --extra-index-url https://download.pytorch.org/whl/cpu, which resolves
+# these to the +cpu wheels used in the verified environment.
+#
+# Transitive dependencies are intentionally not frozen here.
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+python-multipart==0.0.32
+pydantic==2.13.5
+torch==2.14.0
+torchvision==0.29.0
+timm==1.0.29
+Pillow==12.3.0
+numpy==2.5.2
+opencv-python-headless==5.0.0.93
+matplotlib==3.11.1
