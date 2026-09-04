@@ -1,14 +1,19 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { formatClassName, formatPercent } from "../utils/api.js";
 
 function Bar({ value, tone }) {
+  const reduceMotion = useReducedMotion();
   const pct = Math.max(0, Math.min(1, value ?? 0)) * 100;
   return (
     <div className="flex items-center gap-2.5">
       <div className="h-2 w-full min-w-[3.5rem] overflow-hidden rounded-full bg-line-soft">
-        <div
+        <motion.div
           className="h-full rounded-full"
+          initial={reduceMotion ? false : { width: 0 }}
+          whileInView={{ width: `${pct}%` }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           style={{
-            width: `${pct}%`,
             background:
               tone === "stone"
                 ? "linear-gradient(90deg, var(--color-mint) 0%, var(--color-teal) 100%)"

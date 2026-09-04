@@ -1,6 +1,8 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { formatClassName, formatPercent } from "../utils/api.js";
 
-function ProbabilityRow({ label, value, emphasis }) {
+function ProbabilityRow({ label, value, emphasis, delay = 0 }) {
+  const reduceMotion = useReducedMotion();
   const pct = Math.max(0, Math.min(1, value ?? 0)) * 100;
   return (
     <div>
@@ -9,10 +11,14 @@ function ProbabilityRow({ label, value, emphasis }) {
         <span className="figure text-sm text-ink-soft">{formatPercent(value)}</span>
       </div>
       <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-line-soft">
-        <div
+        {/* Bars grow to their final width once, which makes the split between
+            the two classes easier to read at a glance. */}
+        <motion.div
           className="h-full rounded-full"
+          initial={reduceMotion ? false : { width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
           style={{
-            width: `${pct}%`,
             background: emphasis
               ? "linear-gradient(90deg, var(--color-mint) 0%, var(--color-teal) 100%)"
               : "var(--color-mint-mid)",
@@ -75,8 +81,14 @@ export default function EnsembleSummary({ ensemble, consensus }) {
           label="Kidney stone"
           value={probabilities.Kidney_stone}
           emphasis={isStone}
+          delay={0.12}
         />
-        <ProbabilityRow label="Normal" value={probabilities.Normal} emphasis={!isStone} />
+        <ProbabilityRow
+          label="Normal"
+          value={probabilities.Normal}
+          emphasis={!isStone}
+          delay={0.2}
+        />
       </div>
     </section>
   );
