@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowDown, Layers, Scan, Sigma, Upload } from "lucide-react";
+import { ArrowDown, Info, Layers, Scan, Sigma, Upload } from "lucide-react";
 import EnsembleDiagram from "./EnsembleDiagram.jsx";
-import { Logo } from "./Header.jsx";
+import InputGuide from "./InputGuide.jsx";
+import WaterSurface from "./WaterSurface.jsx";
 
 const rise = {
   hidden: { opacity: 0, y: 18 },
@@ -89,7 +90,9 @@ export default function Landing({ children }) {
   return (
     <main id="top">
       {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="relative flex flex-col overflow-hidden lg:min-h-[calc(88vh-4rem)]">
+      {/* Header height is 4.75rem; the hero takes the rest of the first
+          viewport so the two read as one composition. */}
+      <section className="relative flex flex-col overflow-hidden lg:min-h-[calc(100svh-4.75rem)]">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-10"
@@ -101,47 +104,74 @@ export default function Landing({ children }) {
           }}
         />
 
-        <div className="shell grid flex-1 items-center gap-14 pb-14 pt-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1.06fr)] lg:gap-14 lg:pb-10 lg:pt-4">
+        {/* Faint concentric contours, drifting very slowly. Reads as imaging
+            atmosphere rather than decoration; static under reduced motion. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <svg
+            className="hero-contours h-full w-full"
+            viewBox="0 0 1200 800"
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <g fill="none" stroke="var(--color-teal)" strokeWidth="1">
+              {[0, 1, 2, 3, 4, 5, 6].map((ring) => (
+                <ellipse
+                  key={ring}
+                  cx="880"
+                  cy="330"
+                  rx={120 + ring * 68}
+                  ry={92 + ring * 52}
+                  opacity={0.07 - ring * 0.008}
+                />
+              ))}
+            </g>
+            <g fill="none" stroke="var(--color-mint)" strokeWidth="1">
+              {[0, 1, 2, 3, 4].map((ring) => (
+                <ellipse
+                  key={ring}
+                  cx="180"
+                  cy="640"
+                  rx={140 + ring * 84}
+                  ry={104 + ring * 62}
+                  opacity={0.075 - ring * 0.012}
+                />
+              ))}
+            </g>
+          </svg>
+          <span className="hero-sweep" />
+        </div>
+
+        {/* Water across the hero, above the gradient and contours, below the
+            content. Faint so the headline stays the focus. */}
+        <WaterSurface className="water-ambient -z-10" />
+
+        <div className="shell grid flex-1 items-center gap-12 pb-10 pt-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1.06fr)] lg:gap-14 lg:pb-0 lg:pt-0">
           <motion.div
             initial={reduceMotion ? false : "hidden"}
             animate="show"
             variants={{ show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } } }}
           >
-            <motion.div variants={rise} className="flex items-center gap-2.5 sm:gap-3">
-              <Logo className="h-10 w-10 shrink-0 sm:h-14 sm:w-14" compact={false} />
-              {/* Climax is a wide face; the lower bound keeps the wordmark
-                  inside a 360px viewport. */}
-              <span className="wordmark text-[clamp(1.75rem,7.4vw,3.4rem)] text-teal-deep">
-                SendCalyx
-              </span>
-            </motion.div>
-
+            {/* The brand mark lives in the header only. Repeating it here read
+                as duplication in the first viewport. */}
             <motion.h1
               variants={rise}
-              className="display mt-7 max-w-[15ch] text-[clamp(2.2rem,5vw,3.5rem)] text-ink"
+              className="display max-w-[15ch] text-[clamp(2.3rem,5.2vw,3.7rem)] text-ink"
             >
               Inspect the ensemble, not just the answer.
             </motion.h1>
 
             <motion.p
               variants={rise}
-              className="mt-5 max-w-[54ch] text-[1.02rem] leading-relaxed text-ink-soft"
+              className="mt-6 max-w-[54ch] text-[1.05rem] leading-relaxed text-ink-soft"
             >
               Analyze kidney CT imagery across three CNN backbones, compare their
               predictions, and inspect where their visual attributions align or diverge.
             </motion.p>
 
             <motion.div variants={rise} className="mt-9 flex flex-wrap items-center gap-3">
-              <a
-                href="#analyze"
-                className="inline-flex items-center gap-2 rounded-full bg-teal px-6 py-3.5 text-[0.95rem] font-semibold text-white transition-colors hover:bg-teal-deep"
-              >
+              <a href="#analyze" className="btn-primary">
                 Analyze a CT image
               </a>
-              <a
-                href="#workflow"
-                className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-6 py-3.5 text-[0.95rem] font-semibold text-teal-deep backdrop-blur transition-colors hover:border-mint"
-              >
+              <a href="#workflow" className="btn-secondary">
                 Explore the workflow
                 <ArrowDown className="h-4 w-4" aria-hidden="true" />
               </a>
@@ -162,18 +192,18 @@ export default function Landing({ children }) {
           </motion.div>
         </div>
 
-        <div className="shell pb-10">
+        <div className="shell flex shrink-0 justify-center pb-7 lg:pb-8">
           <a
             href="#workflow"
-            className="inline-flex items-center gap-2 text-[0.82rem] font-medium text-ink-faint transition-colors hover:text-teal-deep"
+            className="group inline-flex flex-col items-center gap-2 rounded-lg px-3 py-1 text-[0.78rem] font-medium text-ink-faint transition-colors hover:text-teal-deep"
           >
+            Scroll to explore
             <span
               aria-hidden="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface/70"
+              className="scroll-cue flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface/70 text-teal"
             >
               <ArrowDown className="h-3.5 w-3.5" />
             </span>
-            How it works
           </a>
         </div>
       </section>
@@ -213,7 +243,7 @@ export default function Landing({ children }) {
 
       {/* ── B. Ensemble: asymmetric visual plus text ─────────────────── */}
       <section id="ensemble" className="py-20 sm:py-24">
-        <div className="shell grid items-center gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
+        <div className="shell grid min-w-0 items-center gap-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
           <Reveal>
             <p className="section-tag">Ensemble</p>
             <h2 className="display mt-4 text-[clamp(1.7rem,3.4vw,2.5rem)] text-ink">
@@ -381,14 +411,29 @@ export default function Landing({ children }) {
         </div>
       </section>
 
-      {/* ── E. Analyze: the working intake ──────────────────────────── */}
-      <section id="analyze" className="border-t border-line-soft bg-surface/55 py-20 sm:py-24">
+      {/* ── E. Input guide ──────────────────────────────────────────── */}
+      <InputGuide />
+
+      {/* ── F. Analyze: the working intake ──────────────────────────── */}
+      <section id="analyze" className="border-t border-line-soft py-20 sm:py-24">
         <div className="shell">
-          <Reveal className="max-w-[46ch]">
-            <p className="section-tag">Analyze</p>
-            <h2 className="display mt-4 text-[clamp(1.7rem,3.4vw,2.5rem)] text-ink">
-              Run an image through the ensemble
-            </h2>
+          <Reveal>
+            <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+              <div className="max-w-[46ch]">
+                <p className="section-tag">Analyze</p>
+                <h2 className="display mt-4 text-[clamp(1.7rem,3.4vw,2.5rem)] text-ink">
+                  Run an image through the ensemble
+                </h2>
+              </div>
+
+              <a
+                href="#input-guide"
+                className="inline-flex items-center gap-2.5 rounded-full border border-line bg-surface/80 px-4 py-2.5 text-[0.85rem] text-ink-soft transition-colors hover:border-mint hover:text-teal-deep"
+              >
+                <Info className="h-4 w-4 shrink-0 text-teal" aria-hidden="true" />
+                For guidance on suitable images, see the input guide above
+              </a>
+            </div>
           </Reveal>
 
           <Reveal delay={0.06}>
