@@ -135,8 +135,7 @@ export default function UploadWorkspace({
                 "linear-gradient(152deg, #f9d2e4 0%, #9bdcc9 24%, #3aa79c 54%, #01524f 100%)",
             }}
           >
-            {/* Top-down water surface over the panel gradient, behind the copy.
-                Pointer movement drags the water. */}
+            {/* Top-down water surface over the panel gradient, behind the copy. */}
             <WaterSurface className="rounded-panel" />
 
             <span className="pointer-events-none absolute inset-3 rounded-[1.15rem] border-2 border-dashed border-white/55" />

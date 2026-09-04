@@ -352,8 +352,7 @@
      Each layer is oversized and rotated, then translated along its own axis.
      The translate distance matches the gradient period exactly, so the loop
      has no seam. */
-  /* Only the drifting swells are dimmed and overlay-blended. The pointer
-     response is a sibling of this wrapper so it is not suppressed by either.
+  /* The drifting swells are dimmed and overlay-blended as a group.
      --water-opacity lets each host tune how present the water is: strong on the
      upload panel, faint behind dense content. */
   .water-surface {
@@ -429,10 +428,11 @@
   }
 
   /* Warp the straight crests into swells. Applied to the two banded layers
-     only; the glints are already irregular. */
+     only; the glints are already irregular. --water-filter is set per instance
+     so each surface references its own turbulence definition. */
   .water-swell,
   .water-chop {
-    filter: url(#water-warp);
+    filter: var(--water-filter);
   }
 
   /* Broad swells: long, soft crests. */
