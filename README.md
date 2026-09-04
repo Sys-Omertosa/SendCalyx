@@ -46,6 +46,7 @@ decision-making.**
 | **Attribution consensus** | Pixel-wise mean of the available Grad-CAM maps: where the ensemble consistently looks. |
 | **Attribution disagreement** | Pixel-wise variance across those maps: where the ensemble looks differently. |
 | **Input metadata** | Source dimensions, format, file size, and whether the image was upsampled to reach the model input size. |
+| **Input guidance** | A guide on the landing page showing which kinds of image the ensemble is built for, and which to avoid. |
 | **Graceful degradation** | A failed Grad-CAM does not fail the prediction; cross-model aggregation reports how many maps it actually used. |
 
 ---
@@ -94,9 +95,9 @@ backend/
   tests/             analysis unit tests, no model loading
 frontend/
   public/            logo, favicon set, Climax webfont
-  src/components/    Header, Landing, EnsembleDiagram, UploadWorkspace, EnsembleSummary,
-                     ConsensusPanel, MetricRail, ModelComparison, SaliencyExplorer,
-                     InputMetadata, UsageNotice, Footer
+  src/components/    Header, Landing, EnsembleDiagram, InputGuide, UploadWorkspace,
+                     EnsembleSummary, ConsensusPanel, MetricRail, ModelComparison,
+                     SaliencyExplorer, InputMetadata, UsageNotice, Footer
   src/utils/api.js   API client and formatters
 ```
 
@@ -286,7 +287,7 @@ curl -X POST http://localhost:8000/predict \
 checkpoints in `backend/models/` are LFS-tracked and total roughly 400 MB.
 
 ```bash
-git clone <your-fork-url> SendCalyx
+git clone https://github.com/Sys-Omertosa/SendCalyx.git
 cd SendCalyx
 git lfs pull
 ```
@@ -440,6 +441,13 @@ independently established. Obtain the data from the sources above under their ow
   companions.
 - **Domain shift is untested.** Behaviour on scanners, protocols, windowing, or populations
   outside the training data is unknown.
+- **There is no out-of-distribution gate.** Uploads are validated as image files, not as
+  kidney CT slices, so the ensemble will return a prediction for any decodable image
+  including one from an entirely different domain. Such an output is meaningless. An
+  input-domain screen built from the classifier's own penultimate features was evaluated
+  and rejected: synthetic non-CT images scored inside the range of genuine CT slices, so
+  the screen could not separate them reliably enough to gate on. The landing page carries
+  input guidance instead.
 
 ---
 
