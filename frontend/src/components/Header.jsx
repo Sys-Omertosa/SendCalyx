@@ -58,7 +58,8 @@ export default function Header({ mode = "landing", onReset, onAnalyzeClick }) {
           : "border-b border-transparent bg-transparent"
       }`}
     >
-      <div className="shell flex h-16 items-center gap-4">
+      {/* 4.75rem tall; the hero subtracts exactly this to fill the viewport. */}
+      <div className="shell flex h-[4.75rem] items-center gap-4">
         <a
           href="#top"
           className="flex shrink-0 items-center gap-2.5"
@@ -89,7 +90,7 @@ export default function Header({ mode = "landing", onReset, onAnalyzeClick }) {
             <a
               href="#analyze"
               onClick={onAnalyzeClick}
-              className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-teal px-4 py-2 text-[0.84rem] font-semibold text-white transition-colors hover:bg-teal-deep sm:px-5 sm:text-[0.88rem]"
+              className="btn-primary shrink-0 px-4 py-2 text-[0.84rem] sm:px-5 sm:text-[0.88rem]"
             >
               Analyze CT
             </a>
@@ -97,7 +98,7 @@ export default function Header({ mode = "landing", onReset, onAnalyzeClick }) {
             <button
               type="button"
               onClick={onReset}
-              className="inline-flex items-center gap-2 rounded-full bg-teal px-4 py-2 text-[0.88rem] font-semibold text-white transition-colors hover:bg-teal-deep sm:px-5"
+              className="btn-primary shrink-0 px-4 py-2 text-[0.88rem] sm:px-5"
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               New analysis
