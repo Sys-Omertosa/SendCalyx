@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { EyeOff, Layers, ScanEye } from "lucide-react";
+import WaterSurface from "./WaterSurface.jsx";
 
 const VIEW_COPY = {
   original: "The uploaded slice, resized to the 299 × 299 model input.",
@@ -18,6 +20,8 @@ export default function SaliencyExplorer({
   xaiConsensus,
   consensus,
 }) {
+  const reduceMotion = useReducedMotion();
+
   const views = useMemo(() => {
     const list = [
       {
@@ -132,15 +136,44 @@ export default function SaliencyExplorer({
       </div>
 
       {/* Selected view */}
-      <div className="border-t border-line-soft bg-mint-pale/30 p-6 sm:p-7">
-        <div className="mx-auto max-w-2xl">
+      <div className="relative overflow-hidden border-t border-line-soft p-6 sm:p-7">
+        {/* Same gradient family as the hero, so the viewer surround belongs to
+            the same visual world. */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            background:
+              "radial-gradient(46rem 30rem at 88% 4%, rgba(249,210,228,0.85), transparent 60%)," +
+              "radial-gradient(40rem 30rem at 10% 96%, rgba(103,201,181,0.55), transparent 62%)," +
+              "radial-gradient(56rem 34rem at 50% 120%, rgba(0,126,121,0.22), transparent 68%)",
+          }}
+        />
+
+        {/* Water fills the viewer surround only. */}
+        <WaterSurface className="water-ambient z-0" />
+
+        {/* The attribution map sits above both decorative layers on an opaque
+            card, so neither the gradient nor the water can tint the Grad-CAM.
+            The explicit z-index keeps that true regardless of DOM order: these
+            maps must stay exactly as the backend rendered them. */}
+        <div className="relative z-10 mx-auto max-w-2xl">
           <div className="overflow-hidden rounded-card border border-line bg-teal-dark">
             {selected?.src ? (
-              <img
-                src={selected.src}
-                alt={`${selected.label} view: ${selected.caption}`}
-                className="mx-auto block w-full object-contain"
-              />
+              /* Cross-fade between views so attribution differences are easier
+                 to compare than an instant swap. */
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.img
+                  key={selected.id}
+                  src={selected.src}
+                  alt={`${selected.label} view: ${selected.caption}`}
+                  className="mx-auto block w-full object-contain"
+                  initial={reduceMotion ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={reduceMotion ? undefined : { opacity: 0 }}
+                  transition={{ duration: 0.28, ease: "easeOut" }}
+                />
+              </AnimatePresence>
             ) : (
               <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 px-6 text-center">
                 <EyeOff className="h-7 w-7 text-mint" aria-hidden="true" />
