@@ -87,7 +87,13 @@ export default function App() {
     let cancelled = false;
     checkHealth().then((health) => {
       if (cancelled) return;
-      setServiceState(health?.model_loaded ? "ready" : "unavailable");
+      // Ready means the complete ensemble loaded: status healthy, the flag set,
+      // and nothing reported missing. A partially loaded backend is not usable.
+      const ready =
+        health?.status === "healthy" &&
+        health?.model_loaded === true &&
+        (health?.missing_components?.length ?? 0) === 0;
+      setServiceState(ready ? "ready" : "unavailable");
     });
     return () => {
       cancelled = true;
