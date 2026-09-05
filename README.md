@@ -5,10 +5,15 @@
 > Inspect predictions from a multi-CNN kidney CT ensemble, quantify model consensus, and
 > explore where visual attributions converge or disagree.
 
+### [Live demo: sendcalyx.vercel.app](https://sendcalyx.vercel.app/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-007E79.svg)](LICENSE)
 [![FastAPI](https://img.shields.io/badge/FastAPI-007E79?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PyTorch](https://img.shields.io/badge/PyTorch-67C9B5?logo=pytorch&logoColor=white)](https://pytorch.org)
 [![React](https://img.shields.io/badge/React-01524F?logo=react&logoColor=white)](https://react.dev)
+
+Version 0.1.0, deployed. The React frontend runs on Vercel and the FastAPI inference
+service on Google Cloud Run.
 
 ![The SendCalyx landing page](assets/sendcalyx-landing.png)
 
@@ -20,14 +25,22 @@ Most kidney-stone classifiers return one label and one number. SendCalyx returns
 reasoning trail behind that label.
 
 A CT slice goes through three convolutional backbones (InceptionV3, InceptionResNetV2,
-and Xception) whose six class probabilities feed a small stacked meta-learner. SendCalyx
+and Xception) whose six class probabilities feed a small stacked meta-learner. The system
 then reports what each member of the ensemble decided independently, how far apart those
-decisions were, and where in the image each network placed its attribution. Regions where
-the attribution maps agree and regions where they diverge are computed and rendered
-separately.
+decisions were, and where in the image each network placed its attribution:
 
-The point is inspectability. When the base models split, that split is the most
-interesting thing on the screen, and the interface treats it that way.
+- per-model class probabilities and selected-class confidence,
+- vote counts, agreement ratio, confidence spread, prediction margin, and normalised
+  predictive entropy,
+- pairwise Jensen-Shannon divergence across the base-model probability distributions,
+- a Grad-CAM map per backbone,
+- the pixel-wise mean of those maps, showing where attribution converges,
+- the pixel-wise variance, showing where it diverges.
+
+The point is inspectability. A confident ensemble built on a split vote is a different
+object from a confident ensemble built on unanimity, and the interface treats it that way.
+Every quantity above is a deterministic description of model behaviour on one image, not a
+calibrated statement about the world.
 
 **For research and educational use only. Not intended for clinical diagnosis or medical
 decision-making.**
@@ -126,6 +139,27 @@ checkpoints define every parameter and buffer and are loaded with `strict=True`.
 module configuration matches how each model was built at training time, including
 InceptionV3's `transform_input=True`.
 
+### Reproducibility and failure handling
+
+- **Class ordering is fixed and explicit.** `Kidney_stone` is index 0 and `Normal` is
+  index 1, matching the alphabetical ordering `ImageFolder` produced at training time. It
+  is declared in one place and used consistently through inference, analysis, and the API.
+- **Checkpoint loading is strict.** `strict=True` means a shape or key mismatch fails loudly
+  at startup rather than silently producing a differently-wired model.
+- **Readiness is atomic.** The meta-learner consumes exactly six features from three base
+  models, so a partial load is unusable rather than degraded. The service reports itself
+  ready only when all three backbones and the trained meta-learner have loaded; otherwise
+  `/health` reports degraded and `/predict` returns 503. A randomly initialised
+  meta-learner is never served, which is covered by the test suite.
+- **Inference is deterministic.** Models run in `eval()` under `torch.no_grad()` except
+  where Grad-CAM requires gradients, so repeated requests on the same image return the same
+  numbers. Dependencies are pinned to the versions verified against these checkpoints.
+- **Degradation is graceful and reported.** A failed Grad-CAM does not fail the prediction;
+  cross-model aggregation proceeds on the maps that succeeded and reports how many it used.
+- **Confidence is not uncertainty.** Model confidence, margin, entropy, and divergence are
+  labelled throughout as descriptions of model behaviour, never as calibrated uncertainty or
+  a probability that a prediction is correct.
+
 ---
 
 ## Prediction consensus
@@ -197,14 +231,19 @@ of pathology.
 
 ## API
 
-Base URL `http://localhost:8000`. Interactive docs at `/docs`.
+Four endpoints, with interactive docs at `/docs`. Examples below use
+`http://localhost:8000`; in the deployed system the same API runs on Cloud Run behind the
+frontend.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/` | Service identity, version, readiness. |
-| `GET` | `/health` | Device, loaded base models, and any checkpoint load errors. |
+| `GET` | `/health` | Device, loaded base models, missing components, and any checkpoint load errors. |
 | `GET` | `/models` | Ensemble description, class ordering, model input size. |
 | `POST` | `/predict` | Multipart image upload. Returns the full analysis. |
+
+`/health` and `/models` report ready only when the complete ensemble has loaded; `/models`
+and `/predict` return 503 otherwise.
 
 `POST /predict` accepts PNG, JPEG, or WebP up to 10 MB. Unsupported types return `415`,
 unreadable images `400`, oversized files `413`, and an unloaded model `503`.
@@ -335,8 +374,21 @@ echo "VITE_API_URL=http://localhost:8000" > frontend/.env.local
 python -m unittest discover -s backend/tests -t backend/tests
 ```
 
-The analysis tests construct no CNN and load no checkpoint; they run on small synthetic
-arrays in well under a second.
+70 tests covering two areas.
+
+**Analysis logic.** Consensus metrics, normalised predictive entropy, Jensen-Shannon
+divergence, Grad-CAM aggregation, and input metadata, checked against hand-computed values
+on small synthetic arrays.
+
+**Service readiness.** The rule that the ensemble is usable only with all three base models
+and the trained meta-learner, the atomicity of the loading path, the refusal to run stacked
+inference on an incomplete ensemble, and the guarantee that a randomly initialised
+meta-learner can never be served as though it were trained.
+
+Both groups construct no CNN and read no checkpoint. The readiness tests patch the loading
+internals so failure states are exercised deterministically. The real checkpoint path,
+end-to-end prediction, and deployed behaviour are covered separately by smoke testing
+against the running service.
 
 ### Docker
 
@@ -349,17 +401,25 @@ docker run -p 8000:8000 -e PORT=8000 sendcalyx-api
 
 ## Deployment
 
-The two halves deploy independently.
+SendCalyx runs at [sendcalyx.vercel.app](https://sendcalyx.vercel.app/). The two halves
+deploy independently.
 
-**Backend.** Any container host that can run a CPU PyTorch image. The service binds to
-`$PORT`, so platforms that inject a port (Cloud Run injects `8080`) work without changes.
-Set `SENDCALYX_ALLOWED_ORIGINS` to a comma-separated list of the origins allowed to call
-the API. Allow generous startup time and memory: roughly 400 MB of weights load before
-the first request is served.
+**Frontend.** Static Vite build hosted on Vercel. `VITE_API_URL` is set at build time to
+the deployed API origin; it defaults to `http://localhost:8000` for local work.
 
-**Frontend.** Any static host. Build with `npm run build` in `frontend/` and serve
-`dist/`. Set `VITE_API_URL` at build time to the deployed API origin; it defaults to
-`http://localhost:8000`.
+**Backend.** Containerised FastAPI service on Google Cloud Run. The image is the one in
+`backend/Dockerfile`, and the service binds to `$PORT`, which Cloud Run injects.
+`SENDCALYX_ALLOWED_ORIGINS` takes a comma-separated list of origins permitted to call the
+API, which is how the deployed frontend is authorised.
+
+The backend scales to zero when idle. A request arriving after a period of inactivity
+therefore waits on a cold start while roughly 400 MB of checkpoints load, so the first
+analysis can take noticeably longer than subsequent ones. The frontend accounts for this:
+its readiness probe retries with a short backoff and shows a starting state rather than
+reporting the service as down.
+
+Any container host that can run a CPU PyTorch image will serve the backend on the same
+terms.
 
 ---
 
@@ -387,11 +447,22 @@ architecture definitions preserve this so the checkpoints load exactly as traine
 
 ### Evaluation
 
-No controlled evaluation run is recorded in this repository yet. Rather than quote
-figures that cannot be reproduced from what is published here, this README reports none.
-Accuracy, precision, recall, F1, MCC, and a confusion matrix will be added, together with
-the hardware, library versions, and checkpoint identity used, once such a run is
-performed and recorded.
+The checkpoints described above are the fixed baseline for v0.1.0. They are loaded with
+`strict=True`, so the deployed system is running exactly the weights this configuration
+produced.
+
+This repository records no controlled evaluation of those weights, and therefore quotes no
+accuracy figure. That is a deliberate choice rather than an omission: the dataset audit
+below found cross-split duplicate contents and could not establish patient or study
+independence, so any headline metric computed on that split would overstate what the model
+has demonstrated. Publishing one would be misleading.
+
+A controlled re-evaluation on a hash-cleaned, provenance-checked split is a separate
+research track. When it is run, accuracy, precision, recall, F1, MCC, and a confusion
+matrix will be recorded alongside the hardware, library versions, and checkpoint identity
+used. That work concerns the strength of the evidence behind the weights, not the
+completeness of the software: the inference, analysis, and explainability pipeline is
+implemented, tested, and deployed as it stands.
 
 ### Relationship to published work
 
@@ -420,6 +491,10 @@ independently established. Obtain the data from the sources above under their ow
 ---
 
 ## Limitations
+
+These are the known boundaries of the current system, established by inspection and
+audit rather than left undiscovered. Several of them are the reason the interface reports
+model behaviour rather than a single verdict.
 
 - **Cross-split duplicates are present, and split independence is unverified.** An
   exact-content hash audit of the 5,163 source images found 4,981 unique image contents,
